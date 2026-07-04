@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Office Pulse — Live Device Monitor</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0a1c30;
+    --bg-grid: rgba(120, 180, 220, 0.045);
+    --panel: #10263e;
+    --panel-border: #1c3a57;
+    --amber: #ffb020;
+    --amber-dim: rgba(255, 176, 32, 0.18);
+    --teal: #4cd9c0;
+    --teal-dim: rgba(76, 217, 192, 0.16);
+    --red: #ff5d5d;
+    --red-dim: rgba(255, 93, 93, 0.14);
+    --text: #e8f1f8;
+    --text-dim: #7f9bb5;
+    --text-faint: #4d6883;
+    --furniture: #24425e;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px) 0 0 / 100% 40px,
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px) 0 0 / 40px 100%,
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  }
+
+  header {
+    position: relative;
+    padding: 28px clamp(20px, 4vw, 56px) 22px;
+    border-bottom: 1px solid var(--panel-border);
+    overflow: hidden;
+  }
+  .flow-line {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: repeating-linear-gradient(90deg, var(--amber) 0 10px, transparent 10px 22px);
+    opacity: 0.55; animation: flow 1.4s linear infinite;
+  }
+  @keyframes flow { to { background-position: 32px 0; } }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
+  .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: var(--text-faint); text-transform: uppercase; margin: 0 0 6px; }
+  h1 { font-family: 'Space Grotesk', sans-serif; font-size: clamp(26px, 4vw, 36px); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  h1 span { color: var(--amber); }
+  .status-cluster { display: flex; align-items: center; gap: 18px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--text-dim); flex-wrap: wrap; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); display: inline-block; margin-right: 7px; }
+  .live-dot.on { background: var(--teal); box-shadow: 0 0 8px var(--teal); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .hours-tag { padding: 3px 9px; border-radius: 4px; border: 1px solid var(--panel-border); }
+  .hours-tag.after { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-dim); }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 56px); }
+
+  section.block { margin-top: 28px; }
+  .section-heading { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .section-heading h2 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; margin: 0; }
+  .section-heading .tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: var(--bg); background: var(--amber); padding: 2px 7px; border-radius: 4px; font-weight: 700; }
+
+  .panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 20px 22px; }
+  .panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); margin: 0 0 16px; }
+
+  .floorplan-panel { padding: 20px 22px 26px; }
+  .floorplan-svg-wrap { width: 100%; overflow-x: auto; }
+  .floorplan-svg-wrap svg { width: 100%; height: auto; min-width: 720px; display: block; }
+
+  .room-rect { fill: #0d2135; stroke: #2a4b6b; stroke-width: 2; }
+  .room-label { font-family: 'JetBrains Mono', monospace; font-size: 13px; fill: var(--text-dim); letter-spacing: 0.04em; }
+  .room-watt-badge rect { fill: var(--panel); stroke: var(--panel-border); }
+  .room-watt-badge text { font-family: 'JetBrains Mono', monospace; font-size: 12px; fill: var(--amber); font-weight: 700; }
+
+  .furniture { fill: var(--furniture); stroke: #345676; stroke-width: 1; opacity: 0.85; }
+  .furniture-soft { fill: #2e4d63; stroke: #3f6584; stroke-width: 1; }
+  .plant-pot { fill: #4a3626; }
+  .plant-leaf { fill: #3b7a5c; opacity: 0.85; }
+  .corridor { fill: #0c1f33; stroke: #24425e; stroke-width: 1.5; }
+  .entry-arrow { stroke: var(--text-faint); stroke-width: 2; fill: none; }
+  .entry-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: var(--text-faint); letter-spacing: 0.08em; }
+
+  .fan-blades { transform-origin: 0px 0px; }
+  .fan-icon.on .fan-blades { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fan-hub { fill: var(--text-faint); }
+  .fan-icon.on .fan-hub { fill: var(--teal); }
+  .fan-blade-path { fill: var(--text-faint); }
+  .fan-icon.on .fan-blade-path { fill: var(--teal); }
+  .fan-glow { fill: var(--teal); opacity: 0; transition: opacity 0.4s; }
+  .fan-icon.on .fan-glow { opacity: 0.18; }
+
+  .light-core { fill: var(--text-faint); stroke: #0a1c30; stroke-width: 1.5; }
+  .light-icon.on .light-core { fill: var(--amber); filter: drop-shadow(0 0 6px var(--amber)); }
+  .light-glow { fill: var(--amber); opacity: 0; }
+  .light-icon.on .light-glow { opacity: 0.28; animation: glowPulse 2.2s ease-in-out infinite; }
+  @keyframes glowPulse { 0%,100% { opacity: 0.18; } 50% { opacity: 0.36; } }
+
+  .fan-icon, .light-icon { cursor: default; }
+
+  .grid-2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+  @media (max-width: 880px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .total-watt { font-family: 'JetBrains Mono', monospace; font-size: 46px; font-weight: 700; color: var(--amber); line-height: 1; }
+  .total-watt .unit { font-size: 18px; color: var(--text-dim); margin-left: 6px; }
+  .kwh-today { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--text-dim); margin-top: 6px; }
+
+  .room-bars { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .room-bar-row { display: grid; grid-template-columns: 110px 1fr 60px; align-items: center; gap: 10px; }
+  .room-bar-label { font-size: 12.5px; color: var(--text-dim); }
+  .room-bar-track { height: 8px; background: #0a1c30; border-radius: 5px; overflow: hidden; border: 1px solid var(--panel-border); }
+  .room-bar-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--amber)); transition: width 0.5s ease; }
+  .room-bar-val { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; text-align: right; color: var(--text); }
+
+  .alert-list { display: flex; flex-direction: column; gap: 10px; max-height: 260px; overflow-y: auto; }
+  .alert-item { border-left: 3px solid var(--red); background: var(--red-dim); padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+  .alert-item .ts { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-dim); margin-top: 4px; }
+  .empty-state { color: var(--text-faint); font-size: 13px; font-family: 'JetBrains Mono', monospace; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 940px) { .grid-3 { grid-template-columns: 1fr; } }
+  .insight-value { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; color: var(--teal); line-height: 1.2; }
+  .insight-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 6px; }
+  .sparkline-svg { width: 100%; height: 60px; margin-top: 10px; }
+
+  .rooms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 880px) { .rooms { grid-template-columns: 1fr; } }
+  .room-panel .panel-title { display: flex; justify-content: space-between; align-items: center; }
+  .room-watt { font-family: 'JetBrains Mono', monospace; color: var(--amber); font-weight: 700; }
+  .device-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .device-tile { border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: border-color 0.3s, background 0.3s; }
+  .device-tile.on.fan { border-color: rgba(76,217,192,0.5); background: var(--teal-dim); }
+  .device-tile.on.light { border-color: rgba(255,176,32,0.5); background: var(--amber-dim); }
+  .device-icon { width: 30px; height: 30px; }
+  .device-icon svg { width: 100%; height: 100%; display: block; }
+  .fan .device-icon svg { color: var(--text-faint); }
+  .device-tile.on.fan .device-icon svg { color: var(--teal); animation: spin 1.1s linear infinite; }
+  .light .device-icon svg { color: var(--text-faint); }
+  .device-tile.on.light .device-icon svg { color: var(--amber); filter: drop-shadow(0 0 5px var(--amber)); }
+  .device-label { font-size: 11.5px; color: var(--text-dim); }
+  .device-state { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; }
+  .device-tile.on .device-state { color: var(--text); }
+  .device-tile:not(.on) .device-state { color: var(--text-faint); }
+  .device-ts { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-faint); }
+
+  ::-webkit-scrollbar { height: 6px; width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div>
+      <p class="eyebrow">Techathon · Office Monitor</p>
+      <h1>Office <span>Pulse</span></h1>
+    </div>
+    <div class="status-cluster">
+      <span><span class="live-dot" id="liveDot"></span><span id="connStatus">Connecting…</span></span>
+      <span id="clock">--:--:--</span>
+      <span class="hours-tag" id="hoursTag">Office hours</span>
+    </div>
+  </div>
+  <div class="flow-line"></div>
+</header>
+
+<div class="wrap">
+
+  <section class="block">
+    <div class="section-heading">
+      <h2>Office Floor Plan — Live View</h2>
+      <span class="tag">BONUS</span>
+    </div>
+    <div class="panel floorplan-panel">
+      <div class="floorplan-svg-wrap" id="floorplanWrap"></div>
+    </div>
+  </section>
+
+  <section class="block grid-2">
+    <div class="panel">
+      <p class="panel-title">Live Power Consumption Meter</p>
+      <div class="total-watt" id="totalWatt">0<span class="unit">W</span></div>
+      <div class="kwh-today" id="kwhToday">Est. since monitoring started: 0.00 kWh</div>
+      <div class="room-bars" id="roomBars"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-title">Active Alerts</p>
+      <div class="alert-list" id="alertList">
+        <div class="empty-state">No alerts — all clear.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="section-heading">
+      <h2>Insights</h2>
+      <span class="tag">UNIQUE</span>
+    </div>
+    <div class="grid-3">
+      <div class="panel">
+        <p class="panel-title">Estimated Cost</p>
+        <div class="insight-value" id="costValue">৳0.00</div>
+        <div class="insight-sub" id="costSub">at ৳12.00/kWh · since monitoring started</div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Power Trend</p>
+        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 300 60" preserveAspectRatio="none"></svg>
+        <div class="insight-sub" id="sparklineSub">Live total wattage, rolling window</div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">Longest Running Device</p>
+        <div class="insight-value" id="longRunValue" style="font-size:20px;">—</div>
+        <div class="insight-sub" id="longRunSub">No devices currently on</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="section-heading">
+      <h2>Live Device Status — By Room</h2>
+    </div>
+    <div class="rooms" id="rooms"></div>
+  </section>
+
+</div>
+
+<script>
+  const API_BASE = 'http://localhost:3000';
+  const TARIFF_BDT_PER_KWH = 12.0; // ASSUMPTION: placeholder tariff — swap for real BPDB rate if available
+  const SPARKLINE_MAX_POINTS = 30;
+
+  const ROOM_ORDER = ['drawing', 'work1', 'work2'];
+  const ROOM_LABELS = { drawing: 'Drawing Room', work1: 'Work Room 1', work2: 'Work Room 2' };
+
+  const FAN_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 12c0-3 -2-6-5-6-2 0-3 2-2 4 1 2 4 3 7 2Z"/><path d="M12 12c3 0 6-2 6-5 0-2-2-3-4-2-2 1-3 4-2 7Z"/><path d="M12 12c0 3 2 6 5 6 2 0 3-2 2-4 -1-2-4-3-7-2Z"/></svg>`;
+  const LIGHT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.3 1.1 2.2h5c0-.9.5-1.7 1.1-2.2A6 6 0 0 0 12 3Z"/></svg>`;
+
+  let deviceState = {};
+  let usageHistory = [];
+
+  function buildFloorplan() {
+    const roomW = { drawing: 373, work1: 368, work2: 367 };
+    const roomX = { drawing: 40, work1: 419, work2: 793 };
+    const roomY = 40, roomH = 320;
+
+    let svg = `<svg viewBox="0 0 1200 460" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+      <g id="fanIconDef">
+        <circle class="fan-glow" r="24"></circle>
+        <g class="fan-blades">
+          <path class="fan-blade-path" d="M0,0 C-2,-10 -12,-16 -18,-10 C-14,-3 -6,0 0,0 Z"></path>
+          <path class="fan-blade-path" d="M0,0 C10,-4 18,-12 14,-19 C6,-16 1,-8 0,0 Z"></path>
+          <path class="fan-blade-path" d="M0,0 C8,8 6,18 -2,19 C-6,11 -4,3 0,0 Z"></path>
+        </g>
+        <circle class="fan-hub" r="4"></circle>
+      </g>
+      <g id="lightIconDef">
+        <circle class="light-glow" r="20"></circle>
+        <circle class="light-core" r="9"></circle>
+      </g>
+    </defs>`;
+
+    ROOM_ORDER.forEach(room => {
+      const x = roomX[room], w = roomW[room];
+      svg += `<rect class="room-rect" x="${x}" y="${roomY}" width="${w}" height="${roomH}" rx="6"></rect>`;
+      svg += `<text class="room-label" x="${x + 14}" y="${roomY + 22}">${ROOM_LABELS[room].toUpperCase()}</text>`;
+      svg += `<g class="room-watt-badge" id="badge-${room}">
+                <rect x="${x + w - 74}" y="${roomY + 8}" width="64" height="22" rx="5"></rect>
+                <text x="${x + w - 42}" y="${roomY + 23}" text-anchor="middle" id="badgeText-${room}">0W</text>
+              </g>`;
+
+      const fanY = roomY + 90;
+      [0.24, 0.76].forEach((frac, i) => {
+        const cx = x + w * frac, cy = fanY;
+        svg += `<g class="fan-icon" data-room="${room}" data-type="fan" data-label="Fan ${i+1}" transform="translate(${cx},${cy})">
+                  <title>Fan ${i+1} — ${ROOM_LABELS[room]}</title>
+                  <use href="#fanIconDef"></use>
+                </g>`;
+      });
+
+      const lightY = roomY + 165;
+      [0.16, 0.5, 0.84].forEach((frac, i) => {
+        const cx = x + w * frac, cy = lightY;
+        svg += `<g class="light-icon" data-room="${room}" data-type="light" data-label="Light ${i+1}" transform="translate(${cx},${cy})">
+                  <title>Light ${i+1} — ${ROOM_LABELS[room]}</title>
+                  <use href="#lightIconDef"></use>
+                </g>`;
+      });
+
+      const fy = roomY + 220;
+      if (room === 'drawing') {
+        svg += `<rect class="furniture-soft" x="${x+24}" y="${fy}" width="120" height="52" rx="10"></rect>`;
+        svg += `<rect class="furniture" x="${x+170}" y="${fy+14}" width="80" height="34" rx="5"></rect>`;
+        svg += `<circle class="plant-pot" cx="${x+w-30}" cy="${fy+56}" r="9"></circle><circle class="plant-leaf" cx="${x+w-30}" cy="${fy+40}" r="13"></circle>`;
+      } else {
+        svg += `<rect class="furniture" x="${x+26}" y="${fy}" width="96" height="44" rx="4"></rect>`;
+        svg += `<circle class="furniture-soft" cx="${x+74}" cy="${fy+64}" r="13"></circle>`;
+        svg += `<rect class="furniture" x="${x+w-122}" y="${fy}" width="96" height="44" rx="4"></rect>`;
+        svg += `<circle class="furniture-soft" cx="${x+w-74}" cy="${fy+64}" r="13"></circle>`;
+      }
+    });
+
+    svg += `<rect class="corridor" x="40" y="368" width="1120" height="46" rx="4"></rect>`;
+    svg += `<path class="entry-arrow" d="M600,428 L600,400 M590,410 L600,398 L610,410"></path>`;
+    svg += `<text class="entry-label" x="600" y="444" text-anchor="middle">ENTRY</text>`;
+    svg += `</svg>`;
+    document.getElementById('floorplanWrap').innerHTML = svg;
+  }
+
+  function updateFloorplanIcon(d) {
+    const sel = `.${d.type}-icon[data-room="${d.room}"][data-label="${d.label}"]`;
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.classList.toggle('on', d.status === 'on');
+    const title = el.querySelector('title');
+    if (title) title.textContent = `${d.label} — ${ROOM_LABELS[d.room]} — ${d.status === 'on' ? d.powerDraw + 'W' : 'OFF'}`;
+  }
+
+  function updateFloorplanBadges(usage) {
+    ROOM_ORDER.forEach(room => {
+      const t = document.getElementById(`badgeText-${room}`);
+      if (t) t.textContent = `${usage.perRoom[room].watts}W`;
+    });
+  }
+
+  function buildRoomPanels() {
+    const container = document.getElementById('rooms');
+    container.innerHTML = ROOM_ORDER.map(room => `
+      <div class="panel room-panel" data-room="${room}">
+        <p class="panel-title">${ROOM_LABELS[room]} <span class="room-watt" id="watt-${room}">0W</span></p>
+        <div class="device-grid" id="grid-${room}"></div>
+      </div>
+    `).join('');
+
+    document.getElementById('roomBars').innerHTML = ROOM_ORDER.map(room => `
+      <div class="room-bar-row">
+        <span class="room-bar-label">${ROOM_LABELS[room]}</span>
+        <span class="room-bar-track"><span class="room-bar-fill" id="bar-${room}" style="width:0%"></span></span>
+        <span class="room-bar-val" id="barval-${room}">0W</span>
+      </div>
+    `).join('');
+  }
+
+  function tileHTML(d) {
+    const icon = d.type === 'fan' ? FAN_ICON : LIGHT_ICON;
+    return `
+      <div class="device-tile ${d.status === 'on' ? 'on' : ''} ${d.type}" id="tile-${d.id}">
+        <div class="device-icon">${icon}</div>
+        <div class="device-label">${d.label}</div>
+        <div class="device-state">${d.status === 'on' ? `ON · ${d.powerDraw}W` : 'OFF'}</div>
+        <div class="device-ts" data-ts="${d.lastChanged}">${relTime(d.lastChanged)}</div>
+      </div>
+    `;
+  }
+
+  function renderAllDevices(devices) {
+    deviceState = {};
+    devices.forEach(d => deviceState[d.id] = d);
+    ROOM_ORDER.forEach(room => {
+      const grid = document.getElementById(`grid-${room}`);
+      const roomDevices = devices.filter(d => d.room === room)
+        .sort((a, b) => (a.type === b.type ? a.label.localeCompare(b.label) : a.type.localeCompare(b.type)));
+      grid.innerHTML = roomDevices.map(tileHTML).join('');
+    });
+    devices.forEach(updateFloorplanIcon);
+    updateLongestRunning();
+  }
+
+  function updateDeviceTile(d) {
+    deviceState[d.id] = d;
+    const tile = document.getElementById(`tile-${d.id}`);
+    if (tile) {
+      tile.className = `device-tile ${d.status === 'on' ? 'on' : ''} ${d.type}`;
+      tile.querySelector('.device-state').textContent = d.status === 'on' ? `ON · ${d.powerDraw}W` : 'OFF';
+      const tsEl = tile.querySelector('.device-ts');
+      tsEl.dataset.ts = d.lastChanged;
+      tsEl.textContent = relTime(d.lastChanged);
+    }
+    updateFloorplanIcon(d);
+    updateLongestRunning();
+  }
+
+  function updateUsage(usage) {
+    document.getElementById('totalWatt').innerHTML = `${usage.totalWatts}<span class="unit">W</span>`;
+    document.getElementById('kwhToday').textContent = `Est. since monitoring started: ${usage.kWhToday.toFixed(2)} kWh`;
+    const maxWatt = Math.max(...ROOM_ORDER.map(r => usage.perRoom[r].watts), 1);
+    ROOM_ORDER.forEach(room => {
+      const watts = usage.perRoom[room].watts;
+      document.getElementById(`watt-${room}`).textContent = `${watts}W`;
+      document.getElementById(`bar-${room}`).style.width = `${(watts / maxWatt) * 100}%`;
+      document.getElementById(`barval-${room}`).textContent = `${watts}W`;
+    });
+    updateFloorplanBadges(usage);
+    updateCost(usage);
+    pushSparklinePoint(usage.totalWatts);
+  }
+
+  function renderAlerts(alerts) {
+    const list = document.getElementById('alertList');
+    if (!alerts.length) { list.innerHTML = `<div class="empty-state">No alerts — all clear.</div>`; return; }
+    list.innerHTML = alerts.slice(0, 12).map(a => `
+      <div class="alert-item">${a.message}<span class="ts">${new Date(a.timestamp).toLocaleTimeString()}</span></div>
+    `).join('');
+  }
+
+  function prependAlert(alert) {
+    const list = document.getElementById('alertList');
+    if (list.querySelector('.empty-state')) list.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'alert-item';
+    el.innerHTML = `${alert.message}<span class="ts">${new Date(alert.timestamp).toLocaleTimeString()}</span>`;
+    list.prepend(el);
+  }
+
+  function updateCost(usage) {
+    const cost = usage.kWhToday * TARIFF_BDT_PER_KWH;
+    document.getElementById('costValue').textContent = `৳${cost.toFixed(2)}`;
+  }
+
+  function pushSparklinePoint(watts) {
+    usageHistory.push({ t: Date.now(), w: watts });
+    if (usageHistory.length > SPARKLINE_MAX_POINTS) usageHistory.shift();
+    drawSparkline();
+  }
+
+  function drawSparkline() {
+    const svg = document.getElementById('sparkline');
+    if (usageHistory.length < 2) {
+      svg.innerHTML = `<text x="150" y="34" text-anchor="middle" fill="#4d6883" font-size="11" font-family="JetBrains Mono, monospace">Collecting data…</text>`;
+      return;
+    }
+    const vals = usageHistory.map(p => p.w);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+    const stepX = 300 / (usageHistory.length - 1);
+    const points = usageHistory.map((p, i) => {
+      const x = i * stepX;
+      const y = 54 - ((p.w - min) / range) * 44 - 3;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const lastY = (54 - ((vals[vals.length-1] - min) / range) * 44 - 3).toFixed(1);
+    svg.innerHTML = `
+      <polyline points="${points}" fill="none" stroke="#4cd9c0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+      <circle cx="300" cy="${lastY}" r="3" fill="#ffb020"></circle>
+    `;
+  }
+
+  function updateLongestRunning() {
+    const onDevices = Object.values(deviceState).filter(d => d.status === 'on');
+    if (!onDevices.length) {
+      document.getElementById('longRunValue').textContent = '—';
+      document.getElementById('longRunSub').textContent = 'No devices currently on';
+      return;
+    }
+    const longest = onDevices.reduce((a, b) =>
+      new Date(a.lastChanged) < new Date(b.lastChanged) ? a : b
+    );
+    const mins = Math.floor((Date.now() - new Date(longest.lastChanged).getTime()) / 60000);
+    const h = Math.floor(mins / 60), m = mins % 60;
+    const durText = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    document.getElementById('longRunValue').textContent = `${longest.label}`;
+    document.getElementById('longRunSub').textContent = `${ROOM_LABELS[longest.room]} · running ${durText}`;
+  }
+
+  function relTime(iso) {
+    const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (secs < 5) return 'just now';
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins / 60)}h ago`;
+  }
+
+  setInterval(() => {
+    document.querySelectorAll('.device-ts').forEach(el => { el.textContent = relTime(el.dataset.ts); });
+    updateLongestRunning();
+  }, 10000);
+
+  function tickClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString();
+    const hour = now.getHours();
+    const tag = document.getElementById('hoursTag');
+    const after = hour < 9 || hour >= 17;
+    tag.textContent = after ? 'After office hours' : 'Office hours (9–5)';
+    tag.classList.toggle('after', after);
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  buildFloorplan();
+  buildRoomPanels();
+  drawSparkline();
+
+  const socket = io(API_BASE, { transports: ['websocket', 'polling'] });
+
+  socket.on('connect', () => {
+    document.getElementById('connStatus').textContent = 'Live';
+    document.getElementById('liveDot').classList.add('on');
+  });
+  socket.on('disconnect', () => {
+    document.getElementById('connStatus').textContent = 'Reconnecting…';
+    document.getElementById('liveDot').classList.remove('on');
+  });
+
+  socket.on('snapshot', (data) => {
+    renderAllDevices(data.devices);
+    updateUsage(data.usage);
+    renderAlerts(data.alerts);
+  });
+  socket.on('device:update', (device) => updateDeviceTile(device));
+  socket.on('usage:update', (usage) => updateUsage(usage));
+  socket.on('alert:new', (alert) => prependAlert(alert));
+</script>
+
+</body>
+</html>
