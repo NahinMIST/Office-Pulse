@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="950" viewBox="0 0 1400 950" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#d9730d"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="950" fill="#fafafa"/>
+  <text x="700" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill="#222">System Architecture &amp; Data Flow</text>
+  <text x="700" y="62" text-anchor="middle" font-size="13" fill="#666">Office Device Monitoring: Simulated Devices → Backend → Web Dashboard + Discord Bot</text>
+
+  <!-- LAYER 1: Simulated Devices -->
+  <rect x="40" y="110" width="220" height="180" rx="10" fill="#fff3e0" stroke="#d9730d" stroke-width="2"/>
+  <text x="150" y="135" text-anchor="middle" font-size="14" font-weight="bold" fill="#a85400">1. Simulated Device Layer</text>
+  <rect x="60" y="150" width="180" height="26" rx="4" fill="#fff" stroke="#d9730d"/>
+  <text x="150" y="167" text-anchor="middle" font-size="11">Drawing Room: 2F + 3L</text>
+  <rect x="60" y="182" width="180" height="26" rx="4" fill="#fff" stroke="#d9730d"/>
+  <text x="150" y="199" text-anchor="middle" font-size="11">Work Room 1: 2F + 3L</text>
+  <rect x="60" y="214" width="180" height="26" rx="4" fill="#fff" stroke="#d9730d"/>
+  <text x="150" y="231" text-anchor="middle" font-size="11">Work Room 2: 2F + 3L</text>
+  <text x="150" y="258" text-anchor="middle" font-size="10" fill="#666">18 devices total</text>
+  <text x="150" y="274" text-anchor="middle" font-size="10" fill="#666">{status, watt, room, ts}</text>
+
+  <!-- LAYER 2: Simulator Engine -->
+  <rect x="330" y="110" width="220" height="180" rx="10" fill="#e8f0fe" stroke="#1a56db" stroke-width="2"/>
+  <text x="440" y="135" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a3fa0">2. Simulator Engine</text>
+  <text x="440" y="160" text-anchor="middle" font-size="11">Cron / setInterval loop</text>
+  <text x="440" y="178" text-anchor="middle" font-size="11">(e.g. every 5–10s)</text>
+  <text x="440" y="200" text-anchor="middle" font-size="11" fill="#333">• Randomly toggles</text>
+  <text x="440" y="216" text-anchor="middle" font-size="11" fill="#333">  device on/off</text>
+  <text x="440" y="232" text-anchor="middle" font-size="11" fill="#333">• Updates lastChanged</text>
+  <text x="440" y="248" text-anchor="middle" font-size="11" fill="#333">• Writes to state store</text>
+  <text x="440" y="270" text-anchor="middle" font-size="10" fill="#666">(in-memory / JSON / DB)</text>
+
+  <!-- LAYER 3: Backend API -->
+  <rect x="620" y="90" width="260" height="220" rx="10" fill="#e6f4ea" stroke="#1e8e3e" stroke-width="2"/>
+  <text x="750" y="115" text-anchor="middle" font-size="14" font-weight="bold" fill="#146c2e">3. Backend API (Source of Truth)</text>
+  <rect x="640" y="130" width="220" height="24" rx="4" fill="#fff" stroke="#1e8e3e"/>
+  <text x="750" y="146" text-anchor="middle" font-size="10.5">GET /devices, /devices/:room</text>
+  <rect x="640" y="158" width="220" height="24" rx="4" fill="#fff" stroke="#1e8e3e"/>
+  <text x="750" y="174" text-anchor="middle" font-size="10.5">GET /usage (live + kWh today)</text>
+  <rect x="640" y="186" width="220" height="24" rx="4" fill="#fff" stroke="#1e8e3e"/>
+  <text x="750" y="202" text-anchor="middle" font-size="10.5">GET /alerts</text>
+  <rect x="640" y="214" width="220" height="24" rx="4" fill="#fff" stroke="#1e8e3e"/>
+  <text x="750" y="230" text-anchor="middle" font-size="10.5">WebSocket / SSE: device:update</text>
+  <rect x="640" y="242" width="220" height="24" rx="4" fill="#fff" stroke="#1e8e3e"/>
+  <text x="750" y="258" text-anchor="middle" font-size="10.5">Alert Engine (rules check)</text>
+  <text x="750" y="282" text-anchor="middle" font-size="10" fill="#666">Single shared state — no duplication</text>
+
+  <!-- LAYER 4a: Web Dashboard -->
+  <rect x="960" y="60" width="240" height="150" rx="10" fill="#f3e8fd" stroke="#8430ce" stroke-width="2"/>
+  <text x="1080" y="85" text-anchor="middle" font-size="14" font-weight="bold" fill="#5f1fa0">4. Web Dashboard</text>
+  <text x="1080" y="108" text-anchor="middle" font-size="11">Subscribes via WebSocket</text>
+  <text x="1080" y="128" text-anchor="middle" font-size="11">• Live device status grid</text>
+  <text x="1080" y="146" text-anchor="middle" font-size="11">• Power meter (total + room)</text>
+  <text x="1080" y="164" text-anchor="middle" font-size="11">• Alerts panel</text>
+  <text x="1080" y="182" text-anchor="middle" font-size="11">• Office layout view (bonus)</text>
+
+  <!-- LAYER 4b: Discord Bot -->
+  <rect x="960" y="230" width="240" height="150" rx="10" fill="#e0f2f1" stroke="#00796b" stroke-width="2"/>
+  <text x="1080" y="255" text-anchor="middle" font-size="14" font-weight="bold" fill="#00594e">5. Discord Bot</text>
+  <text x="1080" y="278" text-anchor="middle" font-size="11">Calls backend REST API</text>
+  <text x="1080" y="298" text-anchor="middle" font-size="11">on command</text>
+  <text x="1080" y="318" text-anchor="middle" font-size="11">!status  !room &lt;name&gt;  !usage</text>
+  <text x="1080" y="340" text-anchor="middle" font-size="11">Optional: LLM formats reply</text>
+  <text x="1080" y="358" text-anchor="middle" font-size="11">into friendly sentence</text>
+
+  <!-- LAYER 5: Users -->
+  <rect x="1250" y="60" width="130" height="150" rx="10" fill="#fef7e0" stroke="#b06f00" stroke-width="2"/>
+  <text x="1315" y="90" text-anchor="middle" font-size="12" font-weight="bold" fill="#7a4c00">Browser</text>
+  <text x="1315" y="110" text-anchor="middle" font-size="11">Boss / User</text>
+  <text x="1315" y="140" text-anchor="middle" font-size="24">🖥️</text>
+
+  <rect x="1250" y="230" width="130" height="150" rx="10" fill="#fef7e0" stroke="#b06f00" stroke-width="2"/>
+  <text x="1315" y="260" text-anchor="middle" font-size="12" font-weight="bold" fill="#7a4c00">Discord</text>
+  <text x="1315" y="280" text-anchor="middle" font-size="11">Server Channel</text>
+  <text x="1315" y="310" text-anchor="middle" font-size="24">💬</text>
+
+  <!-- Main flow arrows -->
+  <line x1="260" y1="200" x2="325" y2="200" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="550" y1="200" x2="615" y2="200" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="880" y1="160" x2="955" y2="135" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="915" y="140" font-size="9.5" fill="#555">push: device:update</text>
+  <line x1="880" y1="230" x2="955" y2="300" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="900" y="270" font-size="9.5" fill="#555">GET on command</text>
+  <line x1="1200" y1="135" x2="1245" y2="135" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1200" y1="305" x2="1245" y2="305" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Proactive alert path (bonus) -->
+  <path d="M 750 310 C 750 420, 1080 420, 1080 385" fill="none" stroke="#d9730d" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrowOrange)"/>
+  <text x="900" y="435" text-anchor="middle" font-size="10.5" fill="#a85400" font-weight="bold">Bonus: Alert Engine proactively pushes</text>
+  <text x="900" y="450" text-anchor="middle" font-size="10.5" fill="#a85400">to Discord channel (no user command needed)</text>
+
+  <!-- Bottom: annotated example flow -->
+  <rect x="40" y="510" width="1320" height="380" rx="10" fill="#ffffff" stroke="#ccc" stroke-width="1.5"/>
+  <text x="60" y="540" font-size="15" font-weight="bold" fill="#222">Example: end-to-end trace of ONE device state change</text>
+
+  <g font-size="12" fill="#333">
+    <text x="60" y="575">① Simulator flips "Work Room 2 – Fan 1" from OFF → ON, sets powerDraw=60W, lastChanged=now</text>
+    <text x="60" y="600">② Simulator writes updated device object into shared state store (single source of truth)</text>
+    <text x="60" y="625">③ Backend recalculates: total office wattage, per-room wattage, checks alert rules (after-hours? &gt;2hr on?)</text>
+    <text x="60" y="650">④ Backend emits WebSocket event → device:update { room: "work2", deviceId: "fan1", status: "on", watt: 60 }</text>
+    <text x="60" y="675">⑤a Web Dashboard: socket listener receives event → updates device tile (glow icon) + power meter, no refresh</text>
+    <text x="60" y="700">⑤b Discord Bot: stays idle until a user types !status or !room work2 in the server</text>
+    <text x="60" y="725">⑥ On command, bot calls GET /devices/work2 on the SAME backend → gets the current state (already includes the fan)</text>
+    <text x="60" y="750">⑦ Bot formats response (optionally via LLM): "Work Room 2: 2 fans ON, 3 lights ON — everything's running in there."</text>
+    <text x="60" y="775">⑧ Bot sends message to Discord channel → boss reads it</text>
+    <text x="60" y="800">⑨ (Bonus) If alert rule triggers (e.g. it's 10PM and fan still on) → Backend pushes alert → Bot proactively posts to channel</text>
+  </g>
+
+  <rect x="60" y="825" width="1280" height="45" rx="6" fill="#f0f7ff" stroke="#1a56db"/>
+  <text x="700" y="852" text-anchor="middle" font-size="12" fill="#1a3fa0" font-weight="bold">
+    Key point: both interfaces read the SAME backend state — dashboard via push (WebSocket), bot via pull (REST on command) + optional push for alerts
+  </text>
+</svg>
